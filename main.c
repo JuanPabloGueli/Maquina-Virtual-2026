@@ -49,7 +49,7 @@ void leeVmx_MV1(FILE *arch, maquinaV *mv) {
     int tamCod = 0,i,j;
     fseek(arch,0,0);
 
-    //////////  HEADER  //////////
+    //////////////////////////////  HEADER  //////////////////////////////
 
     for(i = 0; i <= HEADER_SIZE_V1 - 3; i++) { 
         fread(&byteAct, 1, sizeof(byteAct), arch);      // VMX25
@@ -64,7 +64,7 @@ void leeVmx_MV1(FILE *arch, maquinaV *mv) {
         tamCod = (tamCod << 8) | byteAct;
     }
     
-    //////////  TABLA DE SEGMENTOS Y PUNTEROS  //////////
+    //////////////////////////////  TABLA DE SEGMENTOS Y PUNTEROS  //////////////////////////////
 
     if(tamCod > MEM_SIZE){
         mv->error = 6;
@@ -89,7 +89,7 @@ void leeVmx_MV1(FILE *arch, maquinaV *mv) {
 
         mv->regs[CS] = posCS << 16;
         mv->regs[DS] = posDS << 16;
-        mv->regs[IP] = 0;
+        mv->regs[IP] = mv->regs[CS];
 
 
         for (i=0; i < tamCod; i++){              // Lectura
@@ -380,15 +380,22 @@ unsigned int traduceIp(maquinaV *mv){
     else
         res = 0xFFFFFFFF;
 
-    return (res);
+    return res;
 }
 
 
 void leeOp(maquinaV *mv, int tOp,unsigned int *auxIp,int *valor) {
-    *valor = 0;
-    unsigned char byteAct;
 
-    for (int i = 0; i < tOp; i++) {
+    unsigned char byteAct;
+    int i;
+
+    *valor = tOp;
+
+    for ( i = 0; i < 3 - tOp; i++)     // Shift para que haya ceros entre el top y el valor para armas OP2
+    *valor = *valor << 8;
+
+
+    for ( i = 0; i < tOp; i++) {
         mv->regs[IP]++;
         if (!esCodeSegment(mv)) {
             mv->error = 1;
@@ -456,7 +463,7 @@ void jump(maquinaV *mv,char topB){
 void oneOpFetch (maquinaV *mv, char topB){
     int dirsalto;
 
-
+    
     if (mv -> regs[OPC] > 0x00 && mv -> regs[OPC]<0x08){ //si es salto
        
         getValor(mv,OP2,&dirsalto,topB);
@@ -486,14 +493,18 @@ void ejecVmx(maquinaV *mv) {
     char ins, tOpB, tOpA;
     int opA, opB;
     unsigned int auxIp, antIp;
-    auxIp = traduceIp(mv); 
 
+
+    auxIp = traduceIp(mv);
+    
    
     while (mv -> error == 0 && auxIp != 0xFFFFFFFF && esCodeSegment(mv)){
 
         auxIp = traduceIp(mv);
+         
 
         byteAct = mv -> mem[auxIp];
+        printf("byteAct %X   ",byteAct);
 
         ins = byteAct & 0x1F;
         tOpA = (byteAct >> 4) & 0x3;
@@ -513,13 +524,17 @@ void ejecVmx(maquinaV *mv) {
 
             /* CARGO OPERANDO B */
             leeOp(mv, tOpB, &auxIp,&opB);
-            if (mv->error != 0) break;
+            if (mv->error != 0) 
+                break;
             mv->regs[OP2] = opB;
+            
 
             /* CARGO OPERANDO A */
             leeOp(mv, tOpA, &auxIp,&opA);
-            if (mv->error != 0) break;
+            if (mv->error != 0) 
+                break;
             mv->regs[OP1] = opA;
+            
 
             antIp = auxIp;
 
@@ -527,10 +542,12 @@ void ejecVmx(maquinaV *mv) {
 
             if (tOpA != 0 && tOpB != 0) {
                 twoOpFetch(mv, tOpA, tOpB);
-                if (mv->error != 0) break;
+                if (mv->error != 0) 
+                    break;
             } else {
                 oneOpFetch(mv, tOpB);
-                if (mv->error != 0) break;
+                if (mv->error != 0) 
+                    break;
             }
 
 
@@ -587,8 +604,10 @@ void disassembler(maquinaV mv, char topA, char topB){
         } 
         else {
 
-            reg = (mv.regs[OP1] >> 16) % 32;
-            offset = mv.regs[OP1] & 0x00FF;
+            //reg = (mv.regs[OP1] >> 16) % 32;
+            //offset = mv.regs[OP1] & 0x00FF;
+            reg = mv.regs[OP1] & 0x1F;
+            offset = mv.regs[OP1] >> 8;
 
             tamMem = mv.regs[OP1] >> 22;
 
@@ -598,6 +617,8 @@ void disassembler(maquinaV mv, char topA, char topB){
                 case 0b11: printf("b"); break;
                 default: break;
             }
+
+
 
             if(offset >> 7 == 1) offset = (~offset+1)*-1;
             if(offset == 0) 
@@ -609,27 +630,34 @@ void disassembler(maquinaV mv, char topA, char topB){
 
     // Operando B
     if(topB != 0){
-        if(topB == 1){
+        if(topB == 1)
             printf("%s ", registros[mv.regs[OP2]%32]);
-        } else if(topB == 2){
-            inm = mv.regs[OP2];
-            printf("%d ", inm);
-        } else {
-            
-            tamMem = mv.regs[OP2] >> 22;
-            
-            switch (tamMem){
-                case 0b00: printf("l"); break;
-                case 0b10: printf("w"); break;
-                case 0b11: printf("b"); break;
-                default: break;
+        else 
+            if(topB == 2){
+                inm = mv.regs[OP2];
+                printf("%d ", inm);
+            } 
+            else {
+                
+                tamMem = mv.regs[OP2] >> 22;
+                
+                switch (tamMem){
+                    case 0b00: printf("l"); break;
+                    case 0b10: printf("w"); break;
+                    case 0b11: printf("b"); break;
+                }
+                
+                reg = mv.regs[OP2] & 0x1F;
+                offset = mv.regs[OP2] >> 8;
+                
+                //if(offset >> 7 == 1) 
+                //    offset = (~offset+1)*-1;
+    
+                if(offset == 0) 
+                    printf("[%s] ", registros[reg]);
+                else 
+                    printf("[%s%+d]", registros[reg], offset);
             }
-            reg = (mv.regs[OP2] >> 16) % 32;
-            offset = mv.regs[OP2] & 0x00FF;
-            if(offset >> 7 == 1) offset = (~offset+1)*-1;
-            if(offset == 0) printf("[%s] ", registros[reg]);
-            else printf("[%s%+d] ", registros[reg], offset);
-        }
     }
 
     printf("\n");
@@ -649,16 +677,24 @@ void writeCycle(maquinaV *mv) {
         mv->regs[OP2] = topB;
         mv->regs[OPC] = byte & 0x1F; 
 
+        
+        for ( i = 0; i < 3 - topB; i++)     // Shift para que haya ceros entre el top y el valor para armas OP2
+            mv->regs[OP2] = (mv->regs[OP2] << 8);
+
+
         for ( i = 0; i < topB; i++) {
             ipaux++;
             mv->regs[OP2] = (mv->regs[OP2] << 8) | mv->mem[ipaux];
         }
 
+        for ( i = 0; i < 3 - topA; i++)  // Shift para que haya ceros entre el top y el valor para armas OP1
+            mv->regs[OP1] = (mv->regs[OP1] << 8);
+
         for ( i = 0; i < topA; i++) {
             ipaux++;
             mv->regs[OP1] = (mv->regs[OP1] << 8) | mv->mem[ipaux];
         }
-
+        
         disassembler(*mv, topA, topB);
         ipaux++;
     }
@@ -716,7 +752,7 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
     char flagD, ArchVMX[ARCH_NAME_SIZE], ArchVMI[ARCH_NAME_SIZE], Parametros[CANT_PARAM][LEN_PARAM];    //Vector de parametros                                                
     unsigned int M = 0, TopeVecSegmentos = 2;
     unsigned short int entrypoint = 0;
-    int posPara = -1, i=0 , VectorSegmentos[CANT_SEG]; //  -1 por si no llega a haber ParaSegment 
+    int posPara = -1, i=0 , VectorSegmentos[CANT_SEG],argC, argV; //  -1 por si no llega a haber ParaSegment 
     unsigned char Version;
     FILE *archvmx;
 
@@ -792,9 +828,7 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
 
                                 i++;  
                             }
-
-
-                            int argC, argV;
+                            
 
                             leeVmx_MV2(archvmx, mv, M,Parametros,posPara,&entrypoint,VectorSegmentos,&TopeVecSegmentos,&argC,&argV);
 

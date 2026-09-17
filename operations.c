@@ -35,6 +35,7 @@ int traducePuntero(maquinaV *mv,int puntero){
     En la parte baja el offset*/
     
     int posFisisca = 0, seg, offset;
+
     seg = (puntero >> 16) & 0xFFFF;
     offset = puntero & 0xFFFF;
     posFisisca = mv->tablaSeg[seg][0] + offset;
@@ -67,7 +68,7 @@ int calculabytes(maquinaV *mv, int iOp){
 }
 
 void escribeIntMem(maquinaV *mv, int dir, int valor, int iOp) {
-    int bytes; //Cantidad de bytes a escribsir.
+    int bytes; //Cantidad de bytes a escribir.
     
     if(mv -> regs[OPC] == 00) //Si se llamó a esta función desde SYS
         bytes = (mv -> regs[ECX] >> 16) & 0b11;
@@ -104,7 +105,7 @@ void leeIntMem(maquinaV *mv, int dir, int *valor, int iOp) {
 }
 
 
-void setValor(maquinaV *mv, int iOP, int OP, char top) { // iOP es el indice de operando, se le debe pasar OP1 o OP2 si hay que guardar funciones en el otro operando por ejemplo en el SWAP, OP es el valor extraido de GETOPERANDO
+void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice de operando, se le debe pasar OP1 o OP2 si hay que guardar funciones en el otro operando por ejemplo en el SWAP, OP es el valor extraido de GETOPERANDO
    int offset,reg,espacio, bytes ,cantBytes;
 
 
@@ -112,19 +113,19 @@ void setValor(maquinaV *mv, int iOP, int OP, char top) { // iOP es el indice de 
         reg = mv->regs[iOP] & 0x1F;
         bytes = (mv->regs[iOP] >> 6) & 0b11;
 
-        // aseguramos que OP tenga solo los bits válidos según bytes
+        // aseguramos que valor tenga solo los bits válidos según bytes
         switch (bytes) {
             case 0:  // todo el registro (4 bytes)
-                mv->regs[reg] = OP;
+                mv->regs[reg] = valor;
                 break;
             case 1:  // AL (primer byte)
-                mv->regs[reg] = (mv->regs[reg] & 0xFFFFFF00) | (OP & 0xFF);
+                mv->regs[reg] = (mv->regs[reg] & 0xFFFFFF00) | (valor & 0xFF);
                 break;
             case 2:  // AH (tercer byte)
-                mv->regs[reg] = (mv->regs[reg] & 0xFFFF00FF) | ((OP & 0xFF) << 8);
+                mv->regs[reg] = (mv->regs[reg] & 0xFFFF00FF) | ((valor & 0xFF) << 8);
                 break;
             case 3:  // AX (16 bits, dos bytes bajos)
-                mv->regs[reg] = (mv->regs[reg] & 0xFFFF0000) | (OP & 0xFFFF);
+                mv->regs[reg] = (mv->regs[reg] & 0xFFFF0000) | (valor & 0xFFFF);
                 break;
         }
 
@@ -138,7 +139,7 @@ void setValor(maquinaV *mv, int iOP, int OP, char top) { // iOP es el indice de 
                 
 
                 for (int i = 0; i < cantBytes; i++) {
-                    mv->mem[espacio + i] = (OP >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
+                    mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
                 }
 
             printf("\n");
@@ -148,46 +149,46 @@ void setValor(maquinaV *mv, int iOP, int OP, char top) { // iOP es el indice de 
 
 
 
-void getValor(maquinaV *mv,int iOP, int *OP, char top) {
+void getValor(maquinaV *mv,int iOP, int *valor, char top) {
     int i, offset, reg, bytes,cantBytes,espacio;
 
     if (top == 2) // inmediato
-        *OP = mv->regs[iOP];
-    else if (top == 1) { // registro
-        reg = mv -> regs[iOP] & 0x1F;
-        bytes = (mv->regs[iOP] >> 6) & 0b11;
+        *valor = mv->regs[iOP] & 0xFF;
+    else 
+        if (top == 1) { // registro
+            reg = mv -> regs[iOP] & 0x1F;
+            bytes = (mv->regs[iOP] >> 6) & 0b11;
 
-        switch (bytes){
-            case 0: *OP = mv -> regs[reg]; break;
-            case 1: *OP = mv -> regs[reg] & 0xFF; break;
-            case 2: *OP = (mv -> regs[reg] >> 8) & 0xFF; break;
-            case 3: *OP = mv -> regs[reg] & 0xFFFF; break;
-        }
-    } 
-    else { 
-        if(top == 3){ //memoria
-
-            cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11);
-
-            reg = (mv -> regs[iOP] >> 16) & 0x1F;   //cargo el registro
-
-            offset = (int16_t)(mv->regs[iOP] & 0xFFFF); 
-
-            espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escirbir
-
-            *OP = 0;
-
-            for (i = 0; i < cantBytes; i++) {
-                *OP = (*OP >> 8) | mv->mem[espacio + i];
-
+            switch (bytes){
+                case 0: *valor = mv -> regs[reg]; break;
+                case 1: *valor = mv -> regs[reg] & 0xFF; break;
+                case 2: *valor = (mv -> regs[reg] >> 8) & 0xFF; break;
+                case 3: *valor = mv -> regs[reg] & 0xFFFF; break;
             }
-        }
-    } 
+        } 
+        else { 
+            if(top == 3){ //memoria
+                
+                cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 
+
+                reg = mv -> regs[iOP] & 0x1F;  //cargo el registro
+
+                offset = (mv->regs[iOP] >> 8) & 0xFFFF;
+
+                espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escirbir
+
+                *valor = 0;
+
+                for (i = 0; i < cantBytes; i++) 
+                    *valor = (*valor >> 8) | mv->mem[espacio + i];
+        
+            }
+        } 
 }
 
 void MOV(maquinaV *mv, char tOpA, char tOpB){
     int aux;
-
+    
     getValor(mv,OP2,&aux,tOpB);
     setValor(mv,OP1,aux,tOpA);
 
@@ -449,7 +450,6 @@ void SYS1(maquinaV *mv){
 
     int posfisica, base, tope, n, bytes, val, i, j, inicio, tipo, seg;
 
-
     posfisica = traducePuntero(mv,mv->regs[EDX]);
     seg = (mv -> regs[EDX] >> 16) & 0xFFFF;
     base = mv -> tablaSeg[seg][0];
@@ -458,7 +458,7 @@ void SYS1(maquinaV *mv){
     n = mv -> regs[ECX] & 0xFFFF;
     bytes = (mv -> regs[ECX] >> 16) & 0xFFFF;
 
-
+    
     if (posfisica >= base && posfisica + bytes * n < tope){
 
         if (n != 0 && bytes != 0){ 
@@ -541,8 +541,9 @@ void SYSF(maquinaV *mv){
 }
 
 void menuSYS(maquinaV *mv){
-    int orden = mv -> regs[OP2];
+    int orden = mv -> regs[OP2] & 0x0F;
 
+    
     switch (orden){
         case 0x1: SYS1(mv); break; //lectura
         case 0x2: SYS2(mv); break; //escritura
