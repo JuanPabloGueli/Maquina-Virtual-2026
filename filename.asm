@@ -10,7 +10,6 @@ otro:       CMP EAX,0
             JZ fin
             JNN sigue
             ADD AC,1
-            SHL EAX,1
 sigue:      SHL EAX,1
             JMP otro
 fin:        ADD EDX,4

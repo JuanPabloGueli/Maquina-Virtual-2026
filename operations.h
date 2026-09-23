@@ -57,9 +57,7 @@ typedef struct maquinaV{
 /*********************FUNCIONES***********************/
 int traducePuntero(maquinaV *mv,int puntero);
 
-void actNZ(maquinaV *mv,int valor);
-
-int NZ(maquinaV mv);
+void actCC(maquinaV *mv,long long int valor);
 
 void escribeIntMem(maquinaV *mv,int dir,int valor,int iOp);
 
@@ -85,12 +83,6 @@ void DIV(maquinaV *mv, char tOpA, char tOpB);
 
 void CMP(maquinaV *mv, char tOpA, char tOpB);
 
-void SHL(maquinaV *mv, char tOpA, char tOpB);
-
-void SHR(maquinaV *mv, char tOpA, char tOpB);
-
-void SAR(maquinaV *mv, char tOpA, char tOpB);
-
 void AND(maquinaV *mv, char tOpA, char tOpB);
 
 void OR(maquinaV *mv, char tOpA, char tOpB);
@@ -99,15 +91,17 @@ void XOR(maquinaV *mv, char tOpA, char tOpB);
 
 void SWAP(maquinaV *mv, char tOpA, char tOpB);
 
+void SHL(maquinaV *mv, char tOpA, char tOpB);
+
+void SHR(maquinaV *mv, char tOpA, char tOpB);
+
+void SAR(maquinaV *mv, char tOpA, char tOpB);
+
 void LDL(maquinaV *mv, char tOpA, char tOpB);
 
 void LDH(maquinaV *mv, char tOpA, char tOpB);
 
 void RND(maquinaV *mv, char tOpA, char tOpB);
-
-void NOT(maquinaV *mv, char tOpA);
-
-void STOP(maquinaV *mv);
 
 void SYS1(maquinaV *mv);
 
@@ -125,17 +119,25 @@ void creaVmi(maquinaV *mv);
 
 void JMP(maquinaV *mv, int opB);
 
-void JZ(maquinaV *mv, int opB);
-
 void JP(maquinaV *mv, int opB);
 
 void JN(maquinaV *mv, int opB);
 
-void JNZ(maquinaV *mv, int opB);
+void JZ(maquinaV *mv, int opB);
+
+void JC(maquinaV *mv, int opB);
+
+void JV(maquinaV *mv, int opB);
 
 void JNP(maquinaV *mv, int opB);
 
 void JNN(maquinaV *mv, int opB);
+
+void JNZ(maquinaV *mv, int opB);
+
+void NOT(maquinaV *mv, char tOpA);
+
+void STOP(maquinaV *mv);
 
 void PUSH(maquinaV *mv, char topB);
 

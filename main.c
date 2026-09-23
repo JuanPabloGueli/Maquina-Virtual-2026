@@ -424,13 +424,13 @@ void twoOpFetch (maquinaV *mv, char topA, char topB){
         case 0x13:  MUL(mv, topA, topB);break;
         case 0x14:  DIV(mv, topA, topB);break;
         case 0x15:  CMP(mv, topA, topB);break;
-        case 0x16:  SHL(mv, topA, topB);break;
-        case 0x17:  SHR(mv, topA, topB);break;
-        case 0x18:  SAR(mv, topA, topB);break;
-        case 0x19:  AND(mv, topA, topB);break;
-        case 0x1A:   OR(mv, topA, topB);break;
-        case 0x1B:  XOR(mv, topA, topB);break;
-        case 0x1C: SWAP(mv, topA, topB);break;
+        case 0x16:  AND(mv, topA, topB);break;
+        case 0x17:  OR(mv, topA, topB);break;
+        case 0x18:  XOR(mv, topA, topB);break;
+        case 0x19:  SWAP(mv, topA, topB);break;
+        case 0x1A:  SHL(mv, topA, topB);break;
+        case 0x1B:  SHR(mv, topA, topB);break;
+        case 0x1C:  SAR(mv, topA, topB);break;
         case 0x1D:  LDL(mv, topA, topB);break;
         case 0x1E:  LDH(mv, topA, topB);break;
         case 0x1F:  RND(mv, topA, topB);break;
@@ -445,26 +445,28 @@ void jump(maquinaV *mv,char topB){
     int val;
 
     getValor(mv,OP2,&val,topB);
- 
     if (val >= 0 && val < mv ->tablaSeg[posCS][1])
-    {
+
         switch (mv -> regs[OPC]){
             case 0x01: JMP(mv,val); break;
-            case 0x02: JZ(mv,val); break;
-            case 0x03: JP(mv,val); break;
-            case 0x04: JN(mv,val); break;
-            case 0x05: JNZ(mv,val); break; 
-            case 0x06: JNP(mv,val); break;
-            case 0x07: JNN(mv,val); break;
+            case 0x02: JP(mv,val); break;
+            case 0x03: JN(mv,val); break;
+            case 0x04: JZ(mv,val); break;
+            case 0x05: JC(mv,val); break; 
+            case 0x06: JV(mv,val); break;
+            case 0x07: JNP(mv,val); break;
+            case 0x08: JNN(mv,val); break;
+            case 0x09: JNZ(mv,val); break;
+            case 0x0A: NOT(mv,val); break;
         }
-    }
+    
 }
 
 void oneOpFetch (maquinaV *mv, char topB){
     int dirsalto;
 
     
-    if (mv -> regs[OPC] > 0x00 && mv -> regs[OPC]<0x08){ //si es salto
+    if (mv -> regs[OPC] > 0x00 && mv -> regs[OPC]<0x0A){ //si es salto
        
         getValor(mv,OP2,&dirsalto,topB);
         if (dirsalto >= 0 && dirsalto < mv->tablaSeg[posCS][1])
@@ -478,7 +480,7 @@ void oneOpFetch (maquinaV *mv, char topB){
     } else { //si no es salto
         switch (mv -> regs[OPC]){
             case 0x00: menuSYS(mv); break;
-            case 0x08: NOT(mv, topB); break;
+            case 0x0A: NOT(mv, topB); break;
             case 0x0B: PUSH(mv, topB); ;break;
             case 0x0C: POP(mv, topB);break;
             case 0x0D: CALL(mv);break;                                                         
@@ -504,7 +506,7 @@ void ejecVmx(maquinaV *mv) {
          
 
         byteAct = mv -> mem[auxIp];
-        printf("byteAct %X   ",byteAct);
+        //printf("byteAct %X   ",byteAct);
 
         ins = byteAct & 0x1F;
         tOpA = (byteAct >> 4) & 0x3;
@@ -561,6 +563,9 @@ void ejecVmx(maquinaV *mv) {
 
         }
     }   
+
+    for (int i=0 ; i < 100; i++)
+        printf("%02X ",mv->mem[i]);
     
 }
 
