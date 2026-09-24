@@ -13,20 +13,21 @@ int posDS = -1;
 int posES = -1;
 int posSS = -1;
 
-void actCC(maquinaV *mv,long long int valor){
-    int valor_32b = (int32_t)valor;
+void actCC(maquinaV *mv,long long int valor_64b, int valor_32b){
+
+    mv->regs[CC] = 0;
     
-    if(valor_32b == 0) // Cero
-        mv->regs[CC] = 0x40000000;
+    if(valor_32b == 0)// Cero
+        mv->regs[CC] |= 0x40000000;
     else
-        if (valor_32b & 0x80000000) // Negativo
-            mv->regs[CC] = 0x80000000;
+        if (valor_32b < 0) // Negativo
+            mv->regs[CC] |= 0x80000000;
         else
-            if (valor > 0xFFFFFFFF) // Acarreoactcc
-                mv->regs[CC] = 0x20000000;
+            if (valor_32b > 0xFFFFFFFF) // Acarreo
+                mv->regs[CC] |= 0x20000000;
             else
-                if (valor > 2147483647 || valor < -2147483648) // Desbordamiento
-                    mv->regs[CC] = 0x10000000;
+                if (valor_64b > 2147483647 || valor_64b < -2147483648)// Desbordamiento
+                    mv->regs[CC] |= 0x10000000;   
                 else
                     mv->regs[CC] = 0;
 
@@ -137,29 +138,34 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
         }
 
         // escritura segura en el registro según bytes
-    } else {
-            if(top == 3){ //memoria
-                cantBytes = 4;      //cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 2da parte
-                
-                reg = mv -> regs[iOP] & 0x1F;//cargo el registro
-                offset = (mv->regs[iOP] >> 8) & 0xFFFF;// offset que hay en el registro
-                espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
-                for (int i = 0; i < cantBytes; i++) {
-                    mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
-                }
+    } else 
+        if(top == 3){ //memoria
+            cantBytes = 4;      //cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 2da parte
+            
+            reg = mv -> regs[iOP] & 0x1F;//cargo el registro
+            offset = (mv->regs[iOP] >> 8) & 0xFFFF;// offset que hay en el registro
+            espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
+            for (int i = 0; i < cantBytes; i++) {
+                mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
+            }
 
-            printf("\n");
-        }
-    } 
+        printf("\n");
+    }
+     
 }
 
 
 
-void getValor(maquinaV *mv,int iOP, int *valor, char top) {
+void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice de operando, se le debe pasar OP1 o --> OP2 <--  || top es el tipo de operando
+
     int i, offset, reg, bytes,cantBytes,espacio;
 
-    if (top == 2) // inmediato
-        *valor = mv->regs[iOP] & 0xFF;
+    if (top == 2){// inmediato
+        if (mv->regs[iOP] & 0x8000) // negativo
+            *valor = (mv->regs[iOP] << 16) | 0xFFFF; // sign extend
+        else
+            *valor = mv->regs[iOP] & 0xFFFF;
+    }     
     else 
         if (top == 1) { // registro
             reg = mv -> regs[iOP] & 0x1F;
@@ -199,7 +205,7 @@ void MOV(maquinaV *mv, char tOpA, char tOpB){
     getValor(mv,OP2,&aux,tOpB);
     setValor(mv,OP1,aux,tOpA);
     auxCC = (long long int) aux;
-    actCC(mv,auxCC);
+    actCC(mv,auxCC,aux);
 
 }
 
@@ -213,8 +219,7 @@ void ADD(maquinaV *mv, char tOpA, char tOpB){
     res = aux1 + aux2;
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux1 + (long long int)aux2;
-    actCC(mv,resCC);
-
+    actCC(mv,resCC,res);
 }
 
 
@@ -228,7 +233,7 @@ void SUB(maquinaV *mv, char tOpA, char tOpB){
     res = aux1 - aux2;
     setValor(mv,OP1,aux1 - aux2,tOpA);
     resCC = (long long int)aux1 - (long long int)aux2;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
 }
 
 void MUL(maquinaV *mv, char tOpA, char tOpB){
@@ -241,7 +246,7 @@ void MUL(maquinaV *mv, char tOpA, char tOpB){
     res = aux1*aux2;
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux1 * (long long int)aux2;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
 }
 
 void DIV(maquinaV *mv, char tOpA, char tOpB){
@@ -258,7 +263,7 @@ void DIV(maquinaV *mv, char tOpA, char tOpB){
         res = aux1 / aux2;
         setValor(mv,OP1,res,tOpA);
         resCC = (long long int)aux1 / (long long int)aux2;
-        actCC(mv,resCC);
+        actCC(mv,resCC,res);
         mv->regs[AC] = aux1 % aux2;
     }
 }
@@ -280,8 +285,9 @@ void CMP(maquinaV *mv, char tOpA, char tOpB){
             aux1 = (int16_t)(aux1 & 0xFFFF);
         }
     }
+    res = aux1 - aux2;
     resCC = (long long int)aux1 - (long long int)aux2;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
 
 }
 
@@ -296,7 +302,7 @@ void AND(maquinaV *mv, char tOpA, char tOpB){
     res = aux2 & aux1;
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux2 & (long long int)aux1;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
 }
 
 void OR(maquinaV *mv, char tOpA, char tOpB){
@@ -309,7 +315,7 @@ void OR(maquinaV *mv, char tOpA, char tOpB){
     res = aux2 | aux1;
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux2 | (long long int)aux1;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
 }
 
 
@@ -323,7 +329,8 @@ void XOR(maquinaV *mv, char tOpA, char tOpB){
     res = aux2 ^ aux1;   
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux2 ^ (long long int)aux1;
-    actCC(mv,resCC);
+    actCC(mv,resCC,res);
+
 }
 
 
@@ -341,34 +348,40 @@ void SWAP(maquinaV *mv, char tOpA, char tOpB){
 void SHL(maquinaV *mv, char tOpA, char tOpB){
 
     int aux1, aux2, res;
+    long long int resCC;
 
     getValor(mv,OP2,&aux2,tOpB);
     getValor(mv,OP1,&aux1,tOpA);
     res = (int)((unsigned int) aux1 << aux2);
     setValor(mv,OP1,res,tOpA);
-    actCC(mv,res);   
+    resCC = (long long int)res;
+    actCC(mv,resCC,res);
 }
 
 void SHR(maquinaV *mv, char tOpA, char tOpB){
 
     int aux1, aux2, res;
+    long long int resCC;
 
     getValor(mv,OP2,&aux2,tOpB);
     getValor(mv,OP1,&aux1,tOpA);
     res = (int)((unsigned int) aux1 >> aux2);
     setValor(mv,OP1,res,tOpA);
-    actCC(mv,res);   
+    resCC = (long long int)((unsigned int) aux1 >> aux2);
+    actCC(mv,resCC,res);   
 }
 
 void SAR(maquinaV *mv, char tOpA, char tOpB){
 
     int aux1, aux2, res;
+    long long int resCC;
 
     getValor(mv,OP2,&aux2,tOpB);
     getValor(mv,OP1,&aux1,tOpA);
     res = aux1 >> aux2;
     setValor(mv,OP1,res,tOpA);
-    actCC(mv,res);   
+    resCC = (long long int)aux1 >> (long long int)aux2;
+    actCC(mv,resCC,res);   
 }
 
 
@@ -643,58 +656,60 @@ void JMP(maquinaV *mv,int opB){
 }
 
 void JP(maquinaV *mv,int opB){
-    if(mv->regs[CC] >> 28  &  0b1100 == 0 )
+    if((mv->regs[CC] >> 28  &  0b1100) == 0 )
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void JN(maquinaV *mv,int opB){  
-    if(mv->regs[CC] >> 28 &  0b1100 == 8 )
+    if((mv->regs[CC] >> 28 &  0b1100) == 8 )
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void JZ(maquinaV *mv,int opB){
-    if(mv->regs[CC] >> 28 & 0b1100 == 4)
+    if((mv->regs[CC] >> 28 & 0b1100) == 4)
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void JC(maquinaV *mv,int opB){
 
-    if(mv->regs[CC] >> 28 &  0b0010 == 2 )
+    if((mv->regs[CC] >> 28 &  0b0010) == 2 )
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void JV(maquinaV *mv,int opB){
 
-    if(mv->regs[CC] >> 28  &  0b0001 == 1 )
+    if((mv->regs[CC] >> 28  &  0b0001) == 1 )
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
     
 }
 
 void JNP(maquinaV *mv,int opB){
-    if(mv->regs[CC] >> 28 & 0b1000 == 8 || mv->regs[CC] >> 28 & 0b0100 == 4)
+    if(((mv->regs[CC] >> 28 & 0b1000) == 8) || ((mv->regs[CC] >> 28 & 0b0100) == 4))
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 
 void JNN(maquinaV *mv, int opB){
  
-    if(mv->regs[CC] >> 28 & 0b1000 == 0)
+    if((mv->regs[CC] >> 28 & 0b1000) == 0)
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void JNZ(maquinaV *mv,int opB){
-    if(mv->regs[CC] >> 28 & 0b0100 == 0)
+    if((mv->regs[CC] >> 28 & 0b0100) == 0)
         mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | (opB & 0x0000FFFF);
 }
 
 void NOT(maquinaV *mv,char tOpA){
 
     int aux;
+    long long int auxCC;
 
     getValor(mv,OP2,&aux,tOpA);
     aux = ~aux;
     setValor(mv,OP2,aux,tOpA);
-    actCC(mv,aux);
+    auxCC = ~(long long int)aux;
+    actCC(mv,auxCC,aux);
 }
 
 

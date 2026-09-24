@@ -408,8 +408,8 @@ void leeOp(maquinaV *mv, int tOp,unsigned int *auxIp,int *valor) {
         *valor = (*valor << 8) | byteAct;
     }
 
-    if (tOp == 2 && (*valor & 0x8000)) //Sign extend.
-        *valor |= 0xFFFF0000;
+    //if (tOp == 2 && (*valor & 0x8000) == 1) //Sign extend. Si viene un operando instantaneo negativo este, en .vmx, se ve como FF FF , por eso extiendo. El 1er byte del OP1 u OP2 es el tipo de operando
+    //    *valor |= 0xFF0000;
 }
 
 /******FUNCIONES PARA BUSQUEDA******/
@@ -504,9 +504,7 @@ void ejecVmx(maquinaV *mv) {
 
         auxIp = traduceIp(mv);
          
-
         byteAct = mv -> mem[auxIp];
-        //printf("byteAct %X   ",byteAct);
 
         ins = byteAct & 0x1F;
         tOpA = (byteAct >> 4) & 0x3;
@@ -525,14 +523,14 @@ void ejecVmx(maquinaV *mv) {
         } else {
 
             /* CARGO OPERANDO B */
-            leeOp(mv, tOpB, &auxIp,&opB);
+            leeOp(mv, tOpB, &auxIp,&opB);  // opB ya viene completo, con 1er byte = tipo de operando y el resto con un registro/inmediato/op. de memoria
             if (mv->error != 0) 
                 break;
             mv->regs[OP2] = opB;
             
 
             /* CARGO OPERANDO A */
-            leeOp(mv, tOpA, &auxIp,&opA);
+            leeOp(mv, tOpA, &auxIp,&opA); // opA ya viene completo, con 1er byte = tipo de operando y el resto con un registro/inmediato/op. de memoria
             if (mv->error != 0) 
                 break;
             mv->regs[OP1] = opA;
@@ -673,7 +671,6 @@ void writeCycle(maquinaV *mv) {
     char byte;
     ipaux = traducePuntero(mv,mv ->regs[CS]);
     
-
     while (ipaux < mv -> tablaSeg[posCS][0] + mv -> tablaSeg[posCS][1]) {
         byte = mv -> mem[ipaux];
         topA = (byte >> 4) & 0x03;

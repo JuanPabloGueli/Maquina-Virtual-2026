@@ -57,7 +57,7 @@ typedef struct maquinaV{
 /*********************FUNCIONES***********************/
 int traducePuntero(maquinaV *mv,int puntero);
 
-void actCC(maquinaV *mv,long long int valor);
+void actCC(maquinaV *mv,long long int valor_64b, int valor_32b);
 
 void escribeIntMem(maquinaV *mv,int dir,int valor,int iOp);
 
@@ -67,9 +67,9 @@ void setValor(maquinaV *mv, int iOP, int OP, char top);
 
 void getValor(maquinaV *mv,int iOP, int *OP, char top);
 
-void readMem(maquinaV *mv);
+void leeIntMem(maquinaV *mv, int dir, int *valor, int iOp);
 
-void writeMem(maquinaV *mv);
+void escribeIntMem(maquinaV *mv, int dir, int valor, int iOp);
 
 void MOV(maquinaV *mv, char tOpA, char tOpB);
 
