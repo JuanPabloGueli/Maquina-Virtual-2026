@@ -36,7 +36,7 @@
 
 #define ARCH_NAME_SIZE 30 // cantidad de caracteres que componen el nombre del arch.vmx o arch.vmi
 #define MEM_SIZE 16384 // 16384 bytes == 16 KiB
-#define REG_SIZE 32 // 32 registros en el procesador de la VM.
+#define REG_SIZE 32 // 32 registros de 4 bytes en el procesador de la VM.
 #define HEADER_SIZE_V1 7 //el encabezado ocupa del byte 0 al 7 de un archivo
 #define HEADER_SIZE_V2 17 //el encabezado ocupa del byte 0 al 7 de un archivo
 #define HEADER_SIZE_VMI 7 //El header de un .vmi va del byte 0 al 7
@@ -57,19 +57,13 @@ typedef struct maquinaV{
 /*********************FUNCIONES***********************/
 int traducePuntero(maquinaV *mv,int puntero);
 
-void actCC(maquinaV *mv,long long int valor_64b, int valor_32b);
-
-void escribeIntMem(maquinaV *mv,int dir,int valor,int iOp);
-
-void leeIntMem(maquinaV *mv,int dir, int *valor,int iOp);
+void actCC(maquinaV *mv,long long int valor_64b, int valor_32b, int acarreo);
 
 void setValor(maquinaV *mv, int iOP, int OP, char top);
 
 void getValor(maquinaV *mv,int iOP, int *OP, char top);
 
-void leeIntMem(maquinaV *mv, int dir, int *valor, int iOp);
-
-void escribeIntMem(maquinaV *mv, int dir, int valor, int iOp);
+void escribeIntMem(maquinaV *mv, int dirfisica, int valor, int iOp, int dirlogica);
 
 void MOV(maquinaV *mv, char tOpA, char tOpB);
 

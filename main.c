@@ -46,13 +46,13 @@ int esCodeSegment(maquinaV *mv){
 void leeVmx_MV1(FILE *arch, maquinaV *mv) {
 
     unsigned char byteAct;
-    int tamCod = 0,i,j;
+    int tamCod = 0, i, j;
     fseek(arch,0,0);
 
     //////////////////////////////  HEADER  //////////////////////////////
 
     for(i = 0; i <= HEADER_SIZE_V1 - 3; i++) { 
-        fread(&byteAct, 1, sizeof(byteAct), arch);      // VMX25
+        fread(&byteAct, 1, sizeof(byteAct), arch);      // VMX26
         printf("%c", byteAct); 
     }
 
@@ -81,18 +81,18 @@ void leeVmx_MV1(FILE *arch, maquinaV *mv) {
             for (j=0; j < 2; j++)
                 mv->tablaSeg[i][j] = -1;
 
-        /*for (i=0 ; i < CANT_SEG; i++){                                           /// print TABLA DE SEGMENTOS
+        /*for (i=0 ; i < CANT_SEG; i++){ ///    imprime TABLA DE SEGMENTOS
             for (j=0; j < 2; j++)
                 printf("%04X   ",mv->tablaSeg[i][j]);
             printf("\n");
-            }*/
+        }*/
 
         mv->regs[CS] = posCS << 16;
         mv->regs[DS] = posDS << 16;
         mv->regs[IP] = mv->regs[CS];
 
 
-        for (i=0; i < tamCod; i++){              // Lectura
+        for (i=0; i < tamCod; i++){                     // Lectura del codigo 
             fread(&byteAct,1,sizeof(byteAct),arch);
             mv->mem[i] = byteAct;
         }
@@ -177,7 +177,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
 
     //////////  HEADER  //////////
 
-    for(int i = 0; i <= 4; i++) {                       // VMX25
+    for(int i = 0; i <= 4; i++) {                       // VMX26
         fread(&byteAct, 1, sizeof(byteAct), arch);
         printf("%c", byteAct); 
     }
@@ -288,7 +288,7 @@ void leeVmi(maquinaV *mv, FILE *archVmi){
 
     //HEADER Y VERSIÓN//
 
-    for (int i = 0; i <= HEADER_SIZE_VMI - 3; i++){     // VMI25
+    for (int i = 0; i <= HEADER_SIZE_VMI - 3; i++){     // VMI26
         fread(&byteAct,1,sizeof(byteAct),archVmi);
         printf("%c",byteAct); 
     }
@@ -408,8 +408,6 @@ void leeOp(maquinaV *mv, int tOp,unsigned int *auxIp,int *valor) {
         *valor = (*valor << 8) | byteAct;
     }
 
-    //if (tOp == 2 && (*valor & 0x8000) == 1) //Sign extend. Si viene un operando instantaneo negativo este, en .vmx, se ve como FF FF , por eso extiendo. El 1er byte del OP1 u OP2 es el tipo de operando
-    //    *valor |= 0xFF0000;
 }
 
 /******FUNCIONES PARA BUSQUEDA******/
@@ -534,7 +532,6 @@ void ejecVmx(maquinaV *mv) {
             if (mv->error != 0) 
                 break;
             mv->regs[OP1] = opA;
-            
 
             antIp = auxIp;
 
@@ -562,9 +559,9 @@ void ejecVmx(maquinaV *mv) {
         }
     }   
 
-    for (int i=0 ; i < 100; i++)
+    /*for (int i=0 ; i < 100; i++)    // Imprime una parte de la memoria
         printf("%02X ",mv->mem[i]);
-    
+    */
 }
 
 
@@ -680,23 +677,30 @@ void writeCycle(maquinaV *mv) {
         mv->regs[OPC] = byte & 0x1F; 
 
         
-        for ( i = 0; i < 3 - topB; i++)     // Shift para que haya ceros entre el top y el valor para armas OP2
+        printf("[%04d] ",ipaux);
+        printf("%02X ",mv->mem[ipaux]);
+
+        for ( i = 0; i < 3 - topB; i++)     // Shift para que haya ceros entre el top y el valor para armar OP2
             mv->regs[OP2] = (mv->regs[OP2] << 8);
 
 
-        for ( i = 0; i < topB; i++) {
+        for ( i = 0; i < topB; i++) {         
             ipaux++;
+            printf("%02X ",mv->mem[ipaux]);
             mv->regs[OP2] = (mv->regs[OP2] << 8) | mv->mem[ipaux];
         }
 
-        for ( i = 0; i < 3 - topA; i++)  // Shift para que haya ceros entre el top y el valor para armas OP1
+        for ( i = 0; i < 3 - topA; i++)  // Shift para que haya ceros entre el top y el valor para armar OP1
             mv->regs[OP1] = (mv->regs[OP1] << 8);
 
-        for ( i = 0; i < topA; i++) {
+        for ( i = 0; i < topA; i++) {            
             ipaux++;
+            printf("%02X ",mv->mem[ipaux]);
             mv->regs[OP1] = (mv->regs[OP1] << 8) | mv->mem[ipaux];
         }
         
+        printf("%*s| ", 3 * (6 - topA - topB), ""); // espacios hasta escribir el mnemonico
+
         disassembler(*mv, topA, topB);
         ipaux++;
     }
