@@ -133,9 +133,7 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
             espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
             for (int i = 0; i < cantBytes; i++) {
                 mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
-            }
-
-        printf("\n");
+            }     
     }
      
 }
@@ -148,7 +146,7 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
 
     if (top == 2){// inmediato
         if (mv->regs[iOP] & 0x8000) // negativo
-            *valor = (mv->regs[iOP] << 16) | 0xFFFF; // sign extend
+            *valor  = (int16_t)(mv->regs[iOP] & 0xFFFF); // sign extend
         else
             *valor = mv->regs[iOP] & 0xFFFF;
     }     
@@ -167,7 +165,7 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
         else { 
             if(top == 3){ //memoria
                 
-                cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 
+                cantBytes = 4;      //cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 2da part
 
                 reg = mv -> regs[iOP] & 0x1F;  //cargo el registro
 
@@ -178,8 +176,8 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
                 *valor = 0;
 
                 for (i = 0; i < cantBytes; i++) 
-                    *valor = (*valor >> 8) | mv->mem[espacio + i];
-        
+                    *valor = (*valor << 8) | mv->mem[espacio + i];
+
             }
         } 
 }
@@ -341,7 +339,7 @@ void SHL(maquinaV *mv, char tOpA, char tOpB){
     getValor(mv,OP2,&aux2,tOpB);
     getValor(mv,OP1,&aux1,tOpA);
     resUnsigned = (unsigned long long)(unsigned int)aux1 << aux2;
-    res = (int)(unsigned int)resUnsigned;
+    res = (int)((unsigned int) aux1 << aux2);
     setValor(mv,OP1,res,tOpA);
     resCC = (long long int)aux1 * (1 << aux2);
     actCC(mv,resCC,res,resUnsigned > 0xFFFFFFFF);
@@ -378,14 +376,14 @@ void LDL(maquinaV *mv, char tOpA, char tOpB){
 
     unsigned int aux1, aux2;
 
-    getValor(mv, OP2, (int*)&aux2, tOpB);
-    getValor(mv, OP1, (int*)&aux1, tOpA);
+    getValor(mv, OP2, &aux2, tOpB);
+    getValor(mv, OP1, &aux1, tOpA);
 
     aux2 = aux2 & 0x0000FFFF;  
     aux1 = aux1 & 0xFFFF0000;   
     aux1 = aux1 | aux2;      
-
     setValor(mv, OP1, (int)aux1, tOpA);
+
 }
 
 void LDH(maquinaV *mv, char tOpA, char tOpB){
@@ -425,7 +423,8 @@ void binario(int val) {
     int i;
     int bit;
 
-    for (i = 16; i >= 0; i--) {
+    printf(" 0b");
+    for (i = 15; i >= 0; i--) {
         bit = (val >> i) & 1;
         printf("%d", bit);
     }

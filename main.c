@@ -559,9 +559,9 @@ void ejecVmx(maquinaV *mv) {
         }
     }   
 
-    /*for (int i=0 ; i < 100; i++)    // Imprime una parte de la memoria
+    for (int i=123 ; i < 200; i++)    // Imprime una parte de la memoria
         printf("%02X ",mv->mem[i]);
-    */
+    
 }
 
 
