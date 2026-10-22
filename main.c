@@ -159,6 +159,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
     unsigned int j, paramlen ,memor = 0 ,VecArgu[CANT_PARAM];
     unsigned short int tamseg;
     int i, posArgu = 0;
+    
     fseek(arch,0,0); //me paro en el inicio del archivo.
 
     for (i = CS; i <= PS; i++)
@@ -190,17 +191,18 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
 
     for(i = 6; i <= HEADER_SIZE_V2-8; i++) {         // Tamaños desde Code Segment hasta Stack Segment
 
-        fread(&tamseg, 1, sizeof(tamseg), arch);
-        tamseg = (tamseg >> 8) | (tamseg << 8);
+        fread(&tamseg, 1, sizeof(tamseg), arch);    // leo 2 bytes
+        tamseg = (tamseg >> 8) | (tamseg << 8); // pase de little-endian a big-endian
 
         if (tamseg > 0){
             VectorSegmentos[*TopeVecSegmentos]= tamseg;   
-            memor += tamseg;}
+            memor += tamseg;
+        }
 
         (*TopeVecSegmentos)++;
     }
 
-    fread(&tamseg, 1, sizeof(tamseg), arch);    // Constant Segment
+    fread(&tamseg, 1, sizeof(tamseg), arch);    // Constant Segment, separado para agregarlo en 2da posicion en el vector de segmentos si el tamaño es mayor a cero
     tamseg = (tamseg >> 8) | (tamseg << 8); 
 
     if (tamseg > 0){
@@ -263,7 +265,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
         }
 
         if (posPara != -1)
-            memor = VectorSegmentos[0];
+            memor = VectorSegmentos[0]; //ubico la pos de memoria para escritura inmediatamente despues del param segmen si existiera
         else
          memor =0; 
 
@@ -391,7 +393,7 @@ void leeOp(maquinaV *mv, int tOp,unsigned int *auxIp,int *valor) {
 
     *valor = tOp;
 
-    for ( i = 0; i < 3 - tOp; i++)     // Shift para que haya ceros entre el top y el valor para armas OP2
+    for ( i = 0; i < 3 - tOp; i++)     // Shift para que haya ceros entre el top y el valor para armar OP1 / OP2
     *valor = *valor << 8;
 
 
@@ -510,8 +512,8 @@ void ejecVmx(maquinaV *mv) {
 
         mv -> regs[OPC] = ins;
 
-        //LA FUNCION NO TIENE OPERANDOS
-        if (tOpB == 0){
+        
+        if (tOpB == 0){     // LA FUNCION NO TIENE OPERANDOS
 
             switch (mv -> regs[OPC]) {
                 case 0xE: RET(mv); break;
@@ -756,7 +758,7 @@ void iniciaPila(maquinaV *mv, int argC, int argV){
 void iniciaVm(maquinaV *mv,int argc, char *argv[]){
    
     char flagD, ArchVMX[ARCH_NAME_SIZE], ArchVMI[ARCH_NAME_SIZE], Parametros[CANT_PARAM][LEN_PARAM];    //Vector de parametros                                                
-    unsigned int M = 0, TopeVecSegmentos = 2;
+    unsigned int M = 0, TopeVecSegmentos = 2;  // Al leer el vmx el primero tamaño que se lee es el code segment y, siguiendo la ilustracion de la memoria, esta estaria en 3er lugar (0,1,2...)
     unsigned short int entrypoint = 0;
     int posPara = -1, i=0 , VectorSegmentos[CANT_SEG],argC, argV; //  -1 por si no llega a haber ParaSegment 
     unsigned char Version;
@@ -766,7 +768,8 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
     if(argc <= 1)
         printf("\n No se especifico un archivo. \n");  
     else{
-        if(strcmp(argv[1] + strlen(argv[1]) - 4, ".vmi") == 0){ //archivo.vmi, no hay .vmx = nada más cargar imagen y continuar ejecucion
+        if(strcmp(argv[1] + strlen(argv[1]) - 4, ".vmi") == 0){ // archivo.vmi, no hay .vmx = nada más cargar imagen y continuar ejecucion
+
             FILE *archVmi = fopen(argv[1],"rb"); 
             if(!archVmi)
                 printf("\nNo existe el .vmi especificado.");
@@ -791,7 +794,7 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
         else
             if (strcmp(argv[1] + strlen(argv[1]) - 4, ".vmx") == 0){ //Se especificó un .vmx
                 strcpy(ArchVMX,argv[1]);
-                archvmx = fopen(ArchVMX,"rb");    // Abro .vmx  
+                archvmx = fopen(ArchVMX,"rb");    // Abro .vmx porque quiero leer la version 
                 
                 if (archvmx != NULL){
                     

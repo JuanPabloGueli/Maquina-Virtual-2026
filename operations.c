@@ -105,18 +105,18 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
 
     if (top == 1){ // registro
         reg = mv->regs[iOP] & 0x1F;
-        bytes = (mv->regs[iOP] >> 6) & 0b11;
+        bytes = (mv->regs[iOP] >> 5) & 0b11;
 
         // aseguramos que valor tenga solo los bits válidos según bytes
         switch (bytes) {
             case 0:  // todo el registro (4 bytes)
                 mv->regs[reg] = valor;
                 break;
-            case 1:  // AL (primer byte)
+            case 1:  // AL (cuarto byte)
                 mv->regs[reg] = (mv->regs[reg] & 0xFFFFFF00) | (valor & 0xFF);
                 break;
             case 2:  // AH (tercer byte)
-                mv->regs[reg] = (mv->regs[reg] & 0xFFFF00FF) | ((valor & 0xFF) << 8);
+                mv->regs[reg] = (mv->regs[reg] & 0xFFFF00FF) | (valor & 0xFF00);
                 break;
             case 3:  // AX (16 bits, dos bytes bajos)
                 mv->regs[reg] = (mv->regs[reg] & 0xFFFF0000) | (valor & 0xFFFF);
@@ -126,11 +126,12 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
         // escritura segura en el registro según bytes
     } else 
         if(top == 3){ //memoria
-            cantBytes = 4;      //cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 2da parte
+            cantBytes = 4 - ((mv->regs[iOP] >> 5) & 0b111);
             
             reg = mv -> regs[iOP] & 0x1F;//cargo el registro
-            offset = (mv->regs[iOP] >> 8) & 0xFFFF;// offset que hay en el registro
+            offset = mv->regs[iOP] >> 8;// offset que hay en el registro
             espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
+
             for (int i = 0; i < cantBytes; i++) {
                 mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
             }     
@@ -153,23 +154,23 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
     else 
         if (top == 1) { // registro
             reg = mv -> regs[iOP] & 0x1F;
-            bytes = (mv->regs[iOP] >> 6) & 0b11;
+            bytes = (mv->regs[iOP] >> 5) & 0b11;
 
             switch (bytes){
                 case 0: *valor = mv -> regs[reg]; break;
                 case 1: *valor = mv -> regs[reg] & 0xFF; break;
-                case 2: *valor = (mv -> regs[reg] >> 8) & 0xFF; break;
+                case 2: *valor = (mv -> regs[reg] >> 8) & 0xFF00; break;
                 case 3: *valor = mv -> regs[reg] & 0xFFFF; break;
             }
         } 
         else { 
             if(top == 3){ //memoria
                 
-                cantBytes = 4;      //cantBytes = 4 - ((mv->regs[iOP] >> 22) & 0b11); 2da part
+                cantBytes = 4 - ((mv->regs[iOP] >> 5) & 0b111);
 
                 reg = mv -> regs[iOP] & 0x1F;  //cargo el registro
 
-                offset = (mv->regs[iOP] >> 8) & 0xFFFF;
+                offset = mv->regs[iOP] >> 8;
 
                 espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escirbir
 
@@ -541,7 +542,7 @@ void SYS2(maquinaV *mv){
 
 void SYS3(maquinaV *mv){
 
-    int posfisica = traducePuntero(mv, mv -> regs[EDX]),i = 0;;
+    int posfisica = traducePuntero(mv, mv -> regs[EDX]),i = 0;
     char str[400],car;
     
     scanf("%s", str);
@@ -583,11 +584,11 @@ void menuSYS(maquinaV *mv){
 
     
     switch (orden){
+        case 0x0: clrscr(); break; //limpio pantalla  
         case 0x1: SYS1(mv); break; //lectura
         case 0x2: SYS2(mv); break; //escritura
         case 0x3: SYS3(mv); break; //lectura string
         case 0x4: SYS4(mv); break; //escritura string
-        //case 0x7: clrscr(); break; //limpio pantalla  
         case 0xF: SYSF(mv); break; //creo vmi
         default: mv -> error = 3; break;
     }
@@ -595,8 +596,10 @@ void menuSYS(maquinaV *mv){
 
 void creaVmi(maquinaV *mv){
 
-    char *textoHeader = "VMI25";
+    char *textoHeader = "VMI26";
     unsigned short int auxShort;
+    unsigned char version = 0x01; //Escribe la version, siempre es 1
+    
     FILE *archVmi = fopen("breakpoint.vmi","wb");
 
     if(archVmi == NULL){
@@ -606,13 +609,11 @@ void creaVmi(maquinaV *mv){
 
     /*HEADER*/
 
-    fwrite(textoHeader, 1, strlen(textoHeader), archVmi); //Escribe VMI25 en el header
-
-    unsigned char temp = 0x01; //Escribe la version, siempre es 1
-    fwrite(&temp,1,sizeof(temp),archVmi);
+    fwrite(textoHeader, 1, strlen(textoHeader), archVmi); //Escribe VMI26 en el header
+    fwrite(&version,1,sizeof(version),archVmi);
 
     /*TAMAÑO DE LA MEMORIA*/
-    fwrite(&(mv->tamMem),1,sizeof(mv->tamMem),archVmi); //Escribe el tamaño de la memoria en el archivo
+    fwrite( &(mv->tamMem), 1, sizeof(mv->tamMem), archVmi); //Escribe el tamaño de la memoria en el archivo
 
     /*VOLCADO DE REGISTROS*/
 
