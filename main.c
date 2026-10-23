@@ -18,16 +18,16 @@ extern int posSS;
 
 const char* mnem[32] = {
     "SYS","JMP","JP","JN","JZ","JC","JV","JNP","JNN","JNZ","NOT",
-    "-","-","-","-","STOP",
+    "PUSH","POP","CALL","RET","STOP",
     "MOV","ADD","SUB","MUL","DIV","CMP","AND","OR","XOR","SWAP","SHL","SHR", "SAR","LDL","LDH","RND"
 };
 
 
 const char* registros[32] = {
-    "IP", "OPC", "OP1", "OP2","LAR", "MAR", "MBR", "-",
-    "-", "-", "EAX", "EBX", "ECX", "EDX", "EEX", "EFX",
+    "IP", "OPC", "OP1", "OP2","LAR", "MAR", "MBR", "SP",
+    "BP", "-", "EAX", "EBX", "ECX", "EDX", "EEX", "EFX",
     "AC", "CC", "-", "-", "-", "-", "-", "-",
-    "-", "-", "CS", "DS", "-", "-", "-", "-"
+    "-", "-", "CS", "DS", "ES", "SS", "KS", "PS"
 };
 
 
@@ -561,7 +561,7 @@ void ejecVmx(maquinaV *mv) {
         }
     }   
 
-    for (int i=123 ; i < 200; i++)    // Imprime una parte de la memoria
+    for (int i=0 ; i < 200; i++)    // Imprime una parte de la memoria
         printf("%02X ",mv->mem[i]);
     
 }
@@ -579,10 +579,10 @@ void disassembler(maquinaV mv, char topA, char topB){
 
     // Operando A
     if(topA != 0){
-        if(topA == 1){
+        if(topA == 1){  // registro
 
             reg = mv.regs[OP1] & 0x1f;
-            tamMem = (mv.regs[OP1] >> 6) & 0b11;
+            tamMem = (mv.regs[OP1] >> 5) & 0b11;
 
             if(tamMem != 0){
                 
@@ -602,27 +602,21 @@ void disassembler(maquinaV mv, char topA, char topB){
                 }
                 
             } else
-                printf("%s , ", registros[mv.regs[OP1]%32]);
+                printf("%s , ", registros[mv.regs[OP1] & 0x1F]);
         } 
         else {
 
-            //reg = (mv.regs[OP1] >> 16) % 32;
-            //offset = mv.regs[OP1] & 0x00FF;
             reg = mv.regs[OP1] & 0x1F;
             offset = mv.regs[OP1] >> 8;
-
-            tamMem = mv.regs[OP1] >> 22;
+            tamMem = (mv.regs[OP1] >> 5) & 0b111;
 
             switch (tamMem){
-                case 0b00: printf("l"); break;
-                case 0b10: printf("w"); break;
-                case 0b11: printf("b"); break;
+                case 0b100: printf("l"); break;
+                case 0b010: printf("w"); break;
+                case 0b001: printf("b"); break;
                 default: break;
             }
 
-
-
-            if(offset >> 7 == 1) offset = (~offset+1)*-1;
             if(offset == 0) 
                 printf("[%s] , ", registros[reg]);
             else 
@@ -632,28 +626,49 @@ void disassembler(maquinaV mv, char topA, char topB){
 
     // Operando B
     if(topB != 0){
-        if(topB == 1)
-            printf("%s ", registros[mv.regs[OP2]%32]);
+        if(topB == 1){
+            
+            reg = mv.regs[OP2] & 0x1f;
+            tamMem = (mv.regs[OP2] >> 5) & 0b11;
+
+            if(tamMem != 0){
+                
+                switch (reg){
+                    case 10: printf("A"); break;
+                    case 11: printf("B"); break;
+                    case 12: printf("C"); break;
+                    case 13: printf("D"); break;
+                    case 14: printf("E"); break;
+                    case 15: printf("F"); break;
+                }
+
+                switch (tamMem){
+                    case 1: printf("L, "); break;
+                    case 2: printf("H, "); break;
+                    case 3: printf("X, "); break;
+                }
+                
+            } 
+            else
+                printf("%s , ", registros[mv.regs[OP2] & 0x1F]);
+        }
         else 
             if(topB == 2){
-                inm = mv.regs[OP2];
+                inm = mv.regs[OP2] & 0xFFFF;
                 printf("%d ", inm);
             } 
             else {
-                
-                tamMem = mv.regs[OP2] >> 22;
-                
-                switch (tamMem){
-                    case 0b00: printf("l"); break;
-                    case 0b10: printf("w"); break;
-                    case 0b11: printf("b"); break;
-                }
-                
+
                 reg = mv.regs[OP2] & 0x1F;
                 offset = mv.regs[OP2] >> 8;
+                tamMem = (mv.regs[OP2] >> 5) & 0b111;
                 
-                //if(offset >> 7 == 1) 
-                //    offset = (~offset+1)*-1;
+                switch (tamMem){
+                    case 0b100: printf("l"); break;
+                    case 0b010: printf("w"); break;
+                    case 0b001: printf("b"); break;
+                }
+                       
     
                 if(offset == 0) 
                     printf("[%s] ", registros[reg]);
@@ -667,8 +682,11 @@ void disassembler(maquinaV mv, char topA, char topB){
 
 void writeCycle(maquinaV *mv) {
     int topA, topB, ipaux, i;
+    unsigned short int entrypoint;
     char byte;
     ipaux = traducePuntero(mv,mv ->regs[CS]);
+    
+    entrypoint = (mv -> regs[IP] & 0xFFFF) + mv -> tablaSeg[posCS][0];
     
     while (ipaux < mv -> tablaSeg[posCS][0] + mv -> tablaSeg[posCS][1]) {
         byte = mv -> mem[ipaux];
@@ -678,8 +696,11 @@ void writeCycle(maquinaV *mv) {
         mv->regs[OP2] = topB;
         mv->regs[OPC] = byte & 0x1F; 
 
-        
-        printf("[%04d] ",ipaux);
+        if (entrypoint == ipaux)
+            printf(">");
+        else 
+            printf(" ");
+        printf("[%04d] ", ipaux);
         printf("%02X ",mv->mem[ipaux]);
 
         for ( i = 0; i < 3 - topB; i++)     // Shift para que haya ceros entre el top y el valor para armar OP2

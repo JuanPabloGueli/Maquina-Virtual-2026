@@ -9,7 +9,7 @@
 int posPS = -1;
 int posKS = -1;
 int posCS = -1;
-int posDS = -1;
+int posDS = -1; 
 int posES = -1;
 int posSS = -1;
 
@@ -584,7 +584,7 @@ void menuSYS(maquinaV *mv){
 
     
     switch (orden){
-        case 0x0: clrscr(); break; //limpio pantalla  
+        case 0x0: system("cls"); break; //limpio pantalla  
         case 0x1: SYS1(mv); break; //lectura
         case 0x2: SYS2(mv); break; //escritura
         case 0x3: SYS3(mv); break; //lectura string
