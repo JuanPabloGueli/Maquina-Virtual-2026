@@ -98,9 +98,18 @@ void escribeIntMem(maquinaV *mv, int dirfisica, int valor, int iOp, int dirlogic
     
 }
 
+static int bytesAccesoMemoria(int operando) {
+    switch ((operando >> 5) & 0b111) {
+        case 0b001: return 1;
+        case 0b010: return 2;
+        case 0b100: return 4;
+        default: return 4;
+    }
+}
 
 void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice de operando, se le debe pasar OP1 o OP2 si hay que guardar funciones en el otro operando por ejemplo en el SWAP, OP es el valor extraido de GETOPERANDO
-   int offset,reg,espacio, bytes ,cantBytes;
+   int reg,espacio, bytes ,cantBytes;
+   short offset;
 
 
     if (top == 1){ // registro
@@ -126,10 +135,10 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
         // escritura segura en el registro según bytes
     } else 
         if(top == 3){ //memoria
-            cantBytes = 4 - ((mv->regs[iOP] >> 5) & 0b111);
+            cantBytes = bytesAccesoMemoria(mv->regs[iOP]);
             
             reg = mv -> regs[iOP] & 0x1F;//cargo el registro
-            offset = mv->regs[iOP] >> 8;// offset que hay en el registro
+            offset = (mv->regs[iOP] >> 8) & 0xFFFF;// offset con signo de 16 bits
             espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
 
             for (int i = 0; i < cantBytes; i++) {
@@ -143,7 +152,8 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
 
 void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice de operando, se le debe pasar OP1 o --> OP2 <--  || top es el tipo de operando
 
-    int i, offset, reg, bytes,cantBytes,espacio;
+    int i, reg, bytes,cantBytes,espacio;
+    short offset;
 
     if (top == 2){// inmediato
         if (mv->regs[iOP] & 0x8000) // negativo
@@ -166,11 +176,11 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
         else { 
             if(top == 3){ //memoria
                 
-                cantBytes = 4 - ((mv->regs[iOP] >> 5) & 0b111);
+                cantBytes = bytesAccesoMemoria(mv->regs[iOP]);
 
                 reg = mv -> regs[iOP] & 0x1F;  //cargo el registro
 
-                offset = mv->regs[iOP] >> 8;
+                offset = (mv->regs[iOP] >> 8) & 0xFFFF;
 
                 espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escirbir
 
@@ -750,7 +760,15 @@ void POP(maquinaV *mv, char topB) {
     mv->regs[SP] += 4; // incremento lógico del SP
 }
 
-void CALL(maquinaV *mv) {
+void CALL(maquinaV *mv, char topB) {
+    int destino;
+    getValor(mv, OP2, &destino, topB);
+
+    if (destino < 0 || destino >= mv->tablaSeg[posCS][1]) {
+        mv->error = 1; // SEGMENTATION FAULT
+        return;
+    }
+
     int spF = spFisico(mv) - 4;
     if (spF < mv->tablaSeg[posSS][0]) {
         mv->error = 4; // STACK OVERFLOW
@@ -760,14 +778,11 @@ void CALL(maquinaV *mv) {
     mv->regs[SP] -= 4;
 
     int retorno = mv->regs[IP] + 1;
-    for (int i = 0; i < 4; i++)
+
+    for (int i = 0; i < 4; i++)  // Copia en memoria el valor del IP en RET
         mv->mem[spF + i] = (retorno >> (8 * (3 - i))) & 0xFF;
 
-    int nuevaIP = mv->regs[OP2] + mv->tablaSeg[posCS][0];
-    if (nuevaIP >= mv->tablaSeg[posCS][0] && nuevaIP < mv->tablaSeg[posCS][0] + mv->tablaSeg[posCS][1])
-        mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) + mv->regs[OP2];
-    else
-        mv->error = 1; // SEGMENTATION FAULT
+    mv->regs[IP] = (mv->regs[IP] & 0xFFFF0000) | destino;
 }
 
 void RET(maquinaV *mv) {

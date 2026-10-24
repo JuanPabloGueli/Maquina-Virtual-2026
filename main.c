@@ -483,7 +483,7 @@ void oneOpFetch (maquinaV *mv, char topB){
             case 0x0A: NOT(mv, topB); break;
             case 0x0B: PUSH(mv, topB); ;break;
             case 0x0C: POP(mv, topB);break;
-            case 0x0D: CALL(mv);break;                                                         
+            case 0x0D: CALL(mv, topB);break;
             default: mv -> error = 3; break;
         }
     }
@@ -561,9 +561,6 @@ void ejecVmx(maquinaV *mv) {
         }
     }   
 
-    for (int i=0 ; i < 200; i++)    // Imprime una parte de la memoria
-        printf("%02X ",mv->mem[i]);
-    
 }
 
 
@@ -607,7 +604,7 @@ void disassembler(maquinaV mv, char topA, char topB){
         else {
 
             reg = mv.regs[OP1] & 0x1F;
-            offset = mv.regs[OP1] >> 8;
+            offset = (mv.regs[OP1] >> 8) & 0xFFFF;
             tamMem = (mv.regs[OP1] >> 5) & 0b111;
 
             switch (tamMem){
@@ -650,7 +647,7 @@ void disassembler(maquinaV mv, char topA, char topB){
                 
             } 
             else
-                printf("%s , ", registros[mv.regs[OP2] & 0x1F]);
+                printf("%s",registros[mv.regs[OP2] & 0x1F]);
         }
         else 
             if(topB == 2){
@@ -660,7 +657,7 @@ void disassembler(maquinaV mv, char topA, char topB){
             else {
 
                 reg = mv.regs[OP2] & 0x1F;
-                offset = mv.regs[OP2] >> 8;
+                offset = (mv.regs[OP2] >> 8) & 0xFFFF;
                 tamMem = (mv.regs[OP2] >> 5) & 0b111;
                 
                 switch (tamMem){
