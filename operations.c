@@ -585,8 +585,37 @@ void SYS4(maquinaV *mv){
 }
 
 void SYSF(maquinaV *mv){
-    creaVmi(mv);
-    getchar();
+    char accion;
+    int ipActual;
+
+    if (mv->vmiPath == NULL)
+        return;
+
+    ipActual = mv->regs[IP];
+    mv->regs[IP]++;
+    if (!creaVmi(mv, mv->vmiPath)) {
+        mv->regs[IP] = ipActual;
+        mv->error = 7;
+        return;
+    }
+    mv->regs[IP] = ipActual;
+
+    printf("\nBreakpoint guardado en %s. Ingrese 'g' para continuar o 'q' para salir: ",
+           mv->vmiPath);
+    fflush(stdout);
+
+    while (scanf(" %c", &accion) == 1) {
+        if (accion == 'g' || accion == 'G')
+            return;
+        if (accion == 'q' || accion == 'Q') {
+            mv->stopRequested = 1;
+            return;
+        }
+        printf("Opcion invalida. Ingrese 'g' para continuar o 'q' para salir: ");
+        fflush(stdout);
+    }
+
+    mv->stopRequested = 1;
 }
 
 void menuSYS(maquinaV *mv){
@@ -604,49 +633,62 @@ void menuSYS(maquinaV *mv){
     }
 }
 
-void creaVmi(maquinaV *mv){
+int creaVmi(maquinaV *mv, const char *path){
 
-    char *textoHeader = "VMI26";
-    unsigned short int auxShort;
+    static const char textoHeader[] = "VMI26";
+    unsigned short int auxShort, tamMemKiB;
+    unsigned int auxInt;
     unsigned char version = 0x01; //Escribe la version, siempre es 1
+    int correcto;
     
-    FILE *archVmi = fopen("breakpoint.vmi","wb");
+    if (path == NULL || mv->tamMem == 0 || mv->tamMem > MEM_SIZE ||
+        mv->tamMem % 1024 != 0)
+        return 0;
 
-    if(archVmi == NULL){
-        printf("No se pudo crear el archivo .vmi.");
-        return;
-    }
+    FILE *archVmi = fopen(path, "wb");
+
+    if (archVmi == NULL)
+        return 0;
 
     /*HEADER*/
 
-    fwrite(textoHeader, 1, strlen(textoHeader), archVmi); //Escribe VMI26 en el header
-    fwrite(&version,1,sizeof(version),archVmi);
+    correcto = fwrite(textoHeader, 1, sizeof(textoHeader) - 1, archVmi) ==
+               sizeof(textoHeader) - 1;
+    correcto = correcto &&
+               fwrite(&version, 1, sizeof(version), archVmi) == sizeof(version);
 
     /*TAMAÑO DE LA MEMORIA*/
-    fwrite( &(mv->tamMem), 1, sizeof(mv->tamMem), archVmi); //Escribe el tamaño de la memoria en el archivo
+    tamMemKiB = (unsigned short int)(mv->tamMem / 1024);
+    tamMemKiB = (unsigned short int)swap_endian16((short int)tamMemKiB);
+    correcto = correcto &&
+               fwrite(&tamMemKiB, 1, sizeof(tamMemKiB), archVmi) == sizeof(tamMemKiB);
 
     /*VOLCADO DE REGISTROS*/
 
-    for (int i = 0; i < REG_SIZE; i++)
-        fwrite(&(mv->regs[i]),1,sizeof(mv->regs[i]),archVmi);
+    for (int i = 0; correcto && i < REG_SIZE; i++) {
+        auxInt = swap_endian32((uint32_t)mv->regs[i]);
+        correcto = fwrite(&auxInt, 1, sizeof(auxInt), archVmi) == sizeof(auxInt);
+    }
 
     /*VOLCADO DE TABLA DE SEGMENTOS*/
 
-    for (int i = 0; i < 8; i++){
-        auxShort = mv->tablaSeg[i][0];
-        fwrite(&auxShort,1,sizeof(auxShort),archVmi);
-        auxShort = mv->tablaSeg[i][1];
-        fwrite(&auxShort,1,sizeof(auxShort),archVmi);
+    for (int i = 0; correcto && i < CANT_SEG; i++){
+        auxShort = (unsigned short int)swap_endian16((short int)mv->tablaSeg[i][0]);
+        correcto = fwrite(&auxShort, 1, sizeof(auxShort), archVmi) == sizeof(auxShort);
+        auxShort = (unsigned short int)swap_endian16((short int)mv->tablaSeg[i][1]);
+        correcto = correcto &&
+                   fwrite(&auxShort, 1, sizeof(auxShort), archVmi) == sizeof(auxShort);
     }
 
     /*VOLCADO DE MEMORIA*/
 
-    for (unsigned int i = 0; i < mv->tamMem; i++)
-        fwrite(&(mv->mem[i]),1,sizeof(mv->mem[i]),archVmi);
+    if (correcto)
+        correcto = fwrite(mv->mem, 1, mv->tamMem, archVmi) == mv->tamMem;
 
+    if (fclose(archVmi) != 0)
+        correcto = 0;
 
-    fclose(archVmi);
-
+    return correcto;
 }
 
 

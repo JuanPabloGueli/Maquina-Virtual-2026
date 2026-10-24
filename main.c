@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include "operations.h"
 
 
@@ -500,7 +499,7 @@ void ejecVmx(maquinaV *mv) {
     auxIp = traduceIp(mv);
     
    
-    while (mv -> error == 0 && auxIp != 0xFFFFFFFF && esCodeSegment(mv)){
+    while (mv -> error == 0 && !mv->stopRequested && auxIp != 0xFFFFFFFF && esCodeSegment(mv)){
 
         auxIp = traduceIp(mv);
          
@@ -736,6 +735,7 @@ void checkError(maquinaV mv){
         case 4: printf("\nError: Stack Overflow ");break;
         case 5: printf("\nError: Stack Underflow ");break;
         case 6: printf("\nError: Memoria insuficiente ");break;
+        case 7: printf("\nError: No se pudo crear la imagen VMI.\n");break;
         default: printf("\nError desconocido.\n");break;
     }
 }
@@ -775,7 +775,7 @@ void iniciaPila(maquinaV *mv, int argC, int argV){
 
 void iniciaVm(maquinaV *mv,int argc, char *argv[]){
    
-    char flagD, ArchVMX[ARCH_NAME_SIZE], ArchVMI[ARCH_NAME_SIZE], Parametros[CANT_PARAM][LEN_PARAM];    //Vector de parametros                                                
+    char flagD = 0, ArchVMX[ARCH_NAME_SIZE], Parametros[CANT_PARAM][LEN_PARAM];    //Vector de parametros
     unsigned int M = 0, TopeVecSegmentos = 2;  // Al leer el vmx el primero tamaño que se lee es el code segment y, siguiendo la ilustracion de la memoria, esta estaria en 3er lugar (0,1,2...)
     unsigned short int entrypoint = 0;
     int posPara = -1, i=0 , VectorSegmentos[CANT_SEG],argC, argV; //  -1 por si no llega a haber ParaSegment 
@@ -792,12 +792,13 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
             if(!archVmi)
                 printf("\nNo existe el .vmi especificado.");
             else{
+                mv->vmiPath = argv[1];
                 if(argc == 3 && strcmp(argv[2],"-d") == 0) //checkeo disassembler
                     flagD = 'S';
                 
                 leeVmi(mv,archVmi);         //si solo se especifica .vmi, se ignoran los parametros -p y la memoria m=M    
 
-                if (mv->error == 6)    //Error en el tamaño de la memoria?
+                if (mv->error != 0)
                     checkError(*mv);
                 else{
                     if (flagD == 'S') //writeCycle usa ipaux, no toca el registro IP de la maquina.
@@ -835,8 +836,9 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
                                 if (strcmp(argv[i] + strlen(argv[i]) - 4, ".vmx") == 0)
                                     strcpy(ArchVMX, argv[i]);
 
-                                if (strcmp(argv[i] + strlen(argv[i]) - 4, ".vmi") == 0)
-                                    strcpy(ArchVMI, argv[i]);
+                                if (strcmp(argv[i] + strlen(argv[i]) - 4, ".vmi") == 0){
+                                    mv->vmiPath = argv[i];
+                                }
 
                                 if (strncmp(argv[i], "m=", 2) == 0) // si se especifica memoria
                                     M = tamaniomemoria(argv[i]);
@@ -890,6 +892,8 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
 int main(int argc, char *argv[]) {
     maquinaV mv;
     mv.error = 0;
+    mv.stopRequested = 0;
+    mv.vmiPath = NULL;
 
     memset(mv.mem, 0 ,MEM_SIZE); // setea toda la memoria con ceros
     iniciaVm(&mv,argc, argv);

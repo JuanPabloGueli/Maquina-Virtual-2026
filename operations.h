@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 /**********REGISTROS***********/
 
 #define IP 1
@@ -52,9 +54,15 @@ typedef struct maquinaV{
     unsigned short int tablaSeg[CANT_SEG][2]; // tabla de segmentos: matriz de 8x2, una fila x segmento
     int error;
     unsigned short int tamMem;
+    char *vmiPath ;
+    int stopRequested;
 } maquinaV;
 
 /*********************FUNCIONES***********************/
+uint32_t swap_endian32(uint32_t valor);
+
+short int swap_endian16(short int valor);
+
 int traducePuntero(maquinaV *mv,int puntero);
 
 void actCC(maquinaV *mv,long long int valor_64b, int valor_32b, int acarreo);
@@ -109,7 +117,7 @@ void menuSYS(maquinaV *mv);
 
 void binario(int val);
 
-void creaVmi(maquinaV *mv);
+int creaVmi(maquinaV *mv, const char *path);
 
 void JMP(maquinaV *mv, int opB);
 
