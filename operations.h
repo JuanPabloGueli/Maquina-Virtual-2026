@@ -2,14 +2,14 @@
 
 /**********REGISTROS***********/
 
-#define IP 1
-#define OPC 2
-#define OP1 3
-#define OP2 4
+#define IP 0
+#define OPC 1
+#define OP1 2
+#define OP2 3
 
-#define LAR 5
-#define MAR 6
-#define MBR 7
+#define LAR 4
+#define MAR 5
+#define MBR 6
 
 
 #define SP 7

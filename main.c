@@ -754,9 +754,9 @@ unsigned int tamaniomemoria(char *Mem){
 }
 
 void push4b(maquinaV *mv, int valor) {
-    mv->regs[SP] -= 4; 
-    for (int i = 0; i < 4; i++){
-        mv->mem[traducePuntero(mv,mv -> regs[SP]) + i] = (valor >> (8 * i)) & 0xFF;
+    mv->regs[SP] -= 4;
+    for (int i = 0; i < 4; i++) {
+        mv->mem[traducePuntero(mv,mv -> regs[SP]) + i] = (valor >> (8 * (3 - i))) & 0xFF;
     }
 }
 
@@ -770,6 +770,13 @@ void iniciaPila(maquinaV *mv, int argC, int argV){
     push4b(mv,argC);
     push4b(mv,0xFFFFFFFF);
 
+}
+
+int tieneExtension(const char *nombre, const char *extension) {
+    size_t largoNombre = strlen(nombre);
+    size_t largoExtension = strlen(extension);
+
+    return largoNombre >= largoExtension && strcmp(nombre + largoNombre - largoExtension, extension) == 0;
 }
 
 
@@ -786,7 +793,7 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
     if(argc <= 1)
         printf("\n No se especifico un archivo. \n");  
     else{
-        if(strcmp(argv[1] + strlen(argv[1]) - 4, ".vmi") == 0){ // archivo.vmi, no hay .vmx = nada más cargar imagen y continuar ejecucion
+        if(tieneExtension(argv[1], ".vmi")){ // archivo.vmi, no hay .vmx = nada más cargar imagen y continuar ejecucion
 
             FILE *archVmi = fopen(argv[1],"rb"); 
             if(!archVmi)
@@ -811,7 +818,7 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
             }
         }
         else
-            if (strcmp(argv[1] + strlen(argv[1]) - 4, ".vmx") == 0){ //Se especificó un .vmx
+            if (tieneExtension(argv[1], ".vmx")){ //Se especificó un .vmx
                 strcpy(ArchVMX,argv[1]);
                 archvmx = fopen(ArchVMX,"rb");    // Abro .vmx porque quiero leer la version 
                 
@@ -833,13 +840,12 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
                             i=0;
                             while (i < argc) { // MAQUINA VIRTUAL PARTE 2  (.vmx .vmi m=M -d -p)
 
-                                if (strcmp(argv[i] + strlen(argv[i]) - 4, ".vmx") == 0)
+                                if (tieneExtension(argv[i], ".vmx"))
                                     strcpy(ArchVMX, argv[i]);
 
-                                if (strcmp(argv[i] + strlen(argv[i]) - 4, ".vmi") == 0){
+                                if (tieneExtension(argv[i], ".vmi"))
                                     mv->vmiPath = argv[i];
-                                }
-
+                                
                                 if (strncmp(argv[i], "m=", 2) == 0) // si se especifica memoria
                                     M = tamaniomemoria(argv[i]);
 

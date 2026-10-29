@@ -139,11 +139,16 @@ void setValor(maquinaV *mv, int iOP, int valor, char top) { // iOP es el indice 
             
             reg = mv -> regs[iOP] & 0x1F;//cargo el registro
             offset = (mv->regs[iOP] >> 8) & 0xFFFF;// offset con signo de 16 bits
-            espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escribir
+            int dirLogica = mv->regs[reg] + offset;
+            espacio = traducePuntero(mv, dirLogica);
 
             for (int i = 0; i < cantBytes; i++) {
                 mv->mem[espacio + i] = (valor >> (8 * (cantBytes - 1 - i))) & 0xFF;  // big endian
-            }     
+            }
+
+            mv->regs[LAR] = dirLogica;
+            mv->regs[MAR] = (cantBytes << 16) | espacio;
+            mv->regs[MBR] = valor;
     }
      
 }
@@ -172,6 +177,8 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
                 case 2: *valor = (mv -> regs[reg] >> 8) & 0xFF00; break;
                 case 3: *valor = mv -> regs[reg] & 0xFFFF; break;
             }
+            if (reg == IP)
+                *valor = (*valor & 0xFFFF0000) | ((*valor + 1) & 0xFFFF);
         } 
         else { 
             if(top == 3){ //memoria
@@ -182,13 +189,17 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
 
                 offset = (mv->regs[iOP] >> 8) & 0xFFFF;
 
-                espacio = traducePuntero(mv, mv->regs[reg]) + offset; // espacio = direccion en la q se comienza a escirbir
+                int dirLogica = mv->regs[reg] + offset;
+                espacio = traducePuntero(mv, dirLogica);
 
                 *valor = 0;
 
                 for (i = 0; i < cantBytes; i++) 
                     *valor = (*valor << 8) | mv->mem[espacio + i];
 
+                mv->regs[LAR] = dirLogica;
+                mv->regs[MAR] = (cantBytes << 16) | espacio;
+                mv->regs[MBR] = *valor;
             }
         } 
 }
