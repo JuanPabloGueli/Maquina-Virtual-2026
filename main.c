@@ -15,14 +15,14 @@ extern int posES;
 extern int posSS;
 
 
-const char* mnem[32] = {
+char* mnem[32] = {
     "SYS","JMP","JP","JN","JZ","JC","JV","JNP","JNN","JNZ","NOT",
     "PUSH","POP","CALL","RET","STOP",
     "MOV","ADD","SUB","MUL","DIV","CMP","AND","OR","XOR","SWAP","SHL","SHR", "SAR","LDL","LDH","RND"
 };
 
 
-const char* registros[32] = {
+char* registros[32] = {
     "IP", "OPC", "OP1", "OP2","LAR", "MAR", "MBR", "SP",
     "BP", "-", "EAX", "EBX", "ECX", "EDX", "EEX", "EFX",
     "AC", "CC", "-", "-", "-", "-", "-", "-",
@@ -69,6 +69,10 @@ void leeVmx_MV1(FILE *arch, maquinaV *mv) {
         mv->error = 6;
     }
     else {
+
+        for (i = CS; i <= PS; i++)
+            mv->regs[i] = -1;
+            
         mv->tablaSeg[0][0] = 0;
         mv->tablaSeg[0][1] = tamCod;
         posCS = 0;
@@ -139,7 +143,7 @@ void tabla_segmentos_2 (maquinaV *mv, int VectorSegmentos[], unsigned int TopeVe
 
 }
 
-uint32_t swap_endian32(uint32_t x) {
+unsigned int swap_endian32(uint32_t x) {
     return ((x>>24)&0xFF) |
            ((x>>8)&0xFF00) |
            ((x<<8)&0xFF0000) |
@@ -161,7 +165,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
     
     fseek(arch,0,0); //me paro en el inicio del archivo.
 
-    for (i = CS; i <= PS; i++)
+    for (i = CS; i <= PS; i++)    // cargo todos los registros de tipo puntero en -1, el la funcion "tabla_segmentos_2" actualizo los existentes
         mv -> regs[i] = -1;
     
 
@@ -209,7 +213,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
         memor += tamseg;
     }
          
-    fread(entrypoint, 1, sizeof(tamseg), arch);      //Entry ponint
+    fread(entrypoint, 1, sizeof(tamseg), arch);      //Entry point
     *entrypoint = (*entrypoint << 8) | ((*entrypoint >> 8) & 0xff); 
 
     //////////  CARGA MV  //////////
@@ -251,7 +255,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
         }
 
         if (VectorSegmentos[1] != -1)               // Si hay constant segment empiezo a escribir el codigo desde el final del const segment
-            memor = VectorSegmentos[1]  + memor;
+            memor = VectorSegmentos[1]  + memor;    // porque primero esta el codigo y luego las constantes en el .vmx
 
 
        // Carga el Code Segment y Const Segment   //    
@@ -266,7 +270,7 @@ void leeVmx_MV2(FILE *arch, maquinaV *mv, unsigned int M, char Parametros[][LEN_
         if (posPara != -1)
             memor = VectorSegmentos[0]; //ubico la pos de memoria para escritura inmediatamente despues del param segmen si existiera
         else
-         memor =0; 
+         memor =0; // sino escribo desde el comienzo de la memoria
 
 
         for (i = 0; i < VectorSegmentos[1] ; i++){
@@ -678,8 +682,60 @@ void disassembler(maquinaV mv, char topA, char topB){
 
 void writeCycle(maquinaV *mv) {
     int topA, topB, ipaux, i;
+    int segKS, inicioKS, finKS, cursorKS;
     unsigned short int entrypoint;
     char byte;
+
+    if (mv->regs[KS] != -1) {
+        segKS = (mv->regs[KS] >> 16) & 0xFFFF;
+            inicioKS = mv->tablaSeg[segKS][0];
+            finKS = inicioKS + mv->tablaSeg[segKS][1];
+
+            if (inicioKS < finKS) {
+                cursorKS = inicioKS;
+
+                while (cursorKS < finKS) {
+                    int inicioCadena = cursorKS;
+                    
+                    while (cursorKS < finKS && mv->mem[cursorKS] != '\0')
+                        cursorKS++;
+
+                    printf(" [%04X] ", inicioCadena);
+
+                    for (i = inicioCadena; i < cursorKS && i - inicioCadena < 6; i++)
+
+                        printf("%02X ", mv->mem[i]);    // imprime byte
+
+                    if (cursorKS - inicioCadena < 6 && cursorKS < finKS)
+                        printf("%02X dasdas", mv->mem[cursorKS]);
+                    else 
+                        if (cursorKS - inicioCadena + (cursorKS < finKS) > 6) // supera los 7 bytes
+                            printf(".. ");
+
+                    printf("| \"");
+                    for (i = inicioCadena; i < cursorKS; i++) {
+                        unsigned char c = mv->mem[i];
+
+                        if (c == '\n') 
+                            printf("\\n");
+                        else 
+                            if (c == '\t') 
+                                printf("\\t");
+                            else 
+                                if (c >= 32 && c <= 126) // dentro de ascii
+                                    putchar(c);
+                                else
+                                    printf("."); // caracter no imprimible
+                    }
+                    
+                    printf("\"\n");
+
+                    if (cursorKS < finKS)   // para que pase a la proxima cadena, evita el terminator
+                        cursorKS++;
+                }
+            }
+    }
+
     ipaux = traducePuntero(mv,mv ->regs[CS]);
     
     entrypoint = (mv -> regs[IP] & 0xFFFF) + mv -> tablaSeg[posCS][0];
@@ -696,7 +752,7 @@ void writeCycle(maquinaV *mv) {
             printf(">");
         else 
             printf(" ");
-        printf("[%04d] ", ipaux);
+        printf("[%04X] ", ipaux);
         printf("%02X ",mv->mem[ipaux]);
 
         for ( i = 0; i < 3 - topB; i++)     // Shift para que haya ceros entre el top y el valor para armar OP2
@@ -772,7 +828,7 @@ void iniciaPila(maquinaV *mv, int argC, int argV){
 
 }
 
-int tieneExtension(const char *nombre, const char *extension) {
+int tieneExtension(char *nombre, char *extension) {
     size_t largoNombre = strlen(nombre);
     size_t largoExtension = strlen(extension);
 
@@ -783,7 +839,7 @@ int tieneExtension(const char *nombre, const char *extension) {
 void iniciaVm(maquinaV *mv,int argc, char *argv[]){
    
     char flagD = 0, ArchVMX[ARCH_NAME_SIZE], Parametros[CANT_PARAM][LEN_PARAM];    //Vector de parametros
-    unsigned int M = 0, TopeVecSegmentos = 2;  // Al leer el vmx el primero tamaño que se lee es el code segment y, siguiendo la ilustracion de la memoria, esta estaria en 3er lugar (0,1,2...)
+    unsigned int M = 0, TopeVecSegmentos = 2;  // Al leer el vmx el primer tamaño que se lee es el code segment y, siguiendo la ilustracion de la memoria, esta estaria en 3er lugar (0,1,2...)
     unsigned short int entrypoint = 0;
     int posPara = -1, i=0 , VectorSegmentos[CANT_SEG],argC, argV; //  -1 por si no llega a haber ParaSegment 
     unsigned char Version;
@@ -853,10 +909,11 @@ void iniciaVm(maquinaV *mv,int argc, char *argv[]){
                                     flagD = 'S';
 
                                 if (strcmp(argv[i], "-p") == 0) { // si hay parámetros
-                                    posPara = -1; // iniciamos en -1 para que el primer parámetro quede en 0
+                                    strcpy(Parametros[0], argv[1]);  // Copia el nombre del archivo .vmx
+                                    posPara = 0;
 
                                     for (int h = i + 1; h < argc; h++) { 
-                                        posPara++;  // ahora el primer parámetro va a Parametros[0]
+                                        posPara++;
                                         strcpy(Parametros[posPara], argv[h]);
                                     }
                                 }

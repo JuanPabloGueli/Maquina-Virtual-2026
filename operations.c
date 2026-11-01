@@ -98,11 +98,11 @@ void escribeIntMem(maquinaV *mv, int dirfisica, int valor, int iOp, int dirlogic
     
 }
 
-static int bytesAccesoMemoria(int operando) {
+int bytesAccesoMemoria(int operando) {
     switch ((operando >> 5) & 0b111) {
-        case 0b001: return 1;
-        case 0b010: return 2;
-        case 0b100: return 4;
+        case 0b001: return 1; // byte
+        case 0b010: return 2;   // word
+        case 0b100: return 4;   // long
         default: return 4;
     }
 }
@@ -174,7 +174,7 @@ void getValor(maquinaV *mv,int iOP, int *valor, char top) {// iOP es el indice d
             switch (bytes){
                 case 0: *valor = mv -> regs[reg]; break;
                 case 1: *valor = mv -> regs[reg] & 0xFF; break;
-                case 2: *valor = (mv -> regs[reg] >> 8) & 0xFF00; break;
+                case 2: *valor = mv -> regs[reg] & 0xFF00; break;
                 case 3: *valor = mv -> regs[reg] & 0xFFFF; break;
             }
             if (reg == IP)
@@ -564,7 +564,14 @@ void SYS2(maquinaV *mv){
 void SYS3(maquinaV *mv){
 
     int posfisica = traducePuntero(mv, mv -> regs[EDX]),i = 0;
-    char str[400],car;
+    unsigned int cant_caracteres;
+
+    if (mv -> regs[ECX] == -1)
+        cant_caracteres = 400; // "no se limita"
+    else
+        cant_caracteres = mv -> regs[ECX];
+
+    char str[cant_caracteres],car;
     
     scanf("%s", str);
     car = str[i];
@@ -604,6 +611,7 @@ void SYSF(maquinaV *mv){
 
     ipActual = mv->regs[IP];
     mv->regs[IP]++;
+    
     if (!creaVmi(mv, mv->vmiPath)) {
         mv->regs[IP] = ipActual;
         mv->error = 7;
@@ -611,14 +619,13 @@ void SYSF(maquinaV *mv){
     }
     mv->regs[IP] = ipActual;
 
-    printf("\nBreakpoint guardado en %s. Ingrese 'g' para continuar o 'q' para salir: ",
-           mv->vmiPath);
+    printf("\nBreakpoint guardado en %s. Ingrese 'g' para continuar o 'q' para salir: ", mv->vmiPath);
     fflush(stdout);
 
     while (scanf(" %c", &accion) == 1) {
-        if (accion == 'g' || accion == 'G')
+        if (accion == 'g')
             return;
-        if (accion == 'q' || accion == 'Q') {
+        if (accion == 'q') {
             mv->stopRequested = 1;
             return;
         }
@@ -644,9 +651,9 @@ void menuSYS(maquinaV *mv){
     }
 }
 
-int creaVmi(maquinaV *mv, const char *path){
+int creaVmi(maquinaV *mv,char *path){
 
-    static const char textoHeader[] = "VMI26";
+    char textoHeader[] = "VMI26";
     unsigned short int auxShort, tamMemKiB;
     unsigned int auxInt;
     unsigned char version = 0x01; //Escribe la version, siempre es 1
@@ -767,21 +774,46 @@ void NOT(maquinaV *mv,char tOpA){
 
 
 void STOP(maquinaV *mv){
-    mv->regs[IP] = 0xFF;
+    mv->regs[IP] = 0xFFFFFFFF;
 }
 
 /********OPERACIONES DE LA PILA**********/
 
 
 // Obtiene la dirección física del SP
-static int spFisico(maquinaV *mv) {
+int spFisico(maquinaV *mv) {
     return traducePuntero(mv, mv->regs[SP]);
 }
 
 
 void PUSH(maquinaV *mv, char topB) {
     int valor;
-    getValor(mv, OP2, &valor, topB);
+    getValor(mv, OP2, &valor, topB);  // si es inmediato ya viene con el sign extend
+
+    if (topB == 1) {
+        switch ((mv->regs[OP2] >> 5) & 0b11) {
+            case 1:
+                valor = (int8_t)(valor & 0xFF);     // int8_t == signed char
+                break;
+            case 2:
+                valor = (int8_t)((valor >> 8) & 0xFF);
+                break;
+            case 3:
+                valor = (int16_t)(valor & 0xFFFF);
+                break;
+        }
+    } 
+    else 
+        if (topB == 3) {
+        switch ((mv->regs[OP2] >> 5) & 0b111) {
+            case 0b001:
+                valor = (int8_t)(valor & 0xFF);
+                break;
+            case 0b010:
+                valor = (int16_t)(valor & 0xFFFF);
+                break;
+        }
+    }
 
     int spF = spFisico(mv) - 4; // decrecemos el SP físico (stack crece hacia abajo)
 

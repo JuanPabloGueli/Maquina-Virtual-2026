@@ -59,7 +59,7 @@ typedef struct maquinaV{
 } maquinaV;
 
 /*********************FUNCIONES***********************/
-uint32_t swap_endian32(uint32_t valor);
+unsigned int swap_endian32(uint32_t valor);
 
 short int swap_endian16(short int valor);
 
@@ -117,7 +117,7 @@ void menuSYS(maquinaV *mv);
 
 void binario(int val);
 
-int creaVmi(maquinaV *mv, const char *path);
+int creaVmi(maquinaV *mv, char *path);
 
 void JMP(maquinaV *mv, int opB);
 
